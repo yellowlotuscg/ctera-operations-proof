@@ -1,0 +1,66 @@
+{
+  "schema_note": "SYNTHETIC FIXTURE, not a CTERA API response. Field names mirror documented CTERA SDK for Python include paths where possible (see SOURCES.md). Timestamps and versions are invented for deterministic offline testing.",
+  "as_of": "2026-09-05T14:00:00Z",
+  "expected_firmware": {
+    "C200": "8.2.1.2041",
+    "C400": "8.2.1.2041"
+  },
+  "devices": [
+    {
+      "name": "edge-syd-01",
+      "portal": "portal-acme",
+      "deviceType": "C200",
+      "owner": "ops-team",
+      "deviceConnectionStatus": "connected",
+      "deviceReportedStatus": {
+        "lastReportedTimeUtc": "2026-09-05T13:58:00Z",
+        "reportedAtUtc": "2026-09-05T13:58:00Z",
+        "status": {
+          "device": {"runningFirmware": "8.2.1.2041"}
+        }
+      }
+    },
+    {
+      "name": "edge-nyc-02",
+      "portal": "portal-acme",
+      "deviceType": "C400",
+      "owner": "ops-team",
+      "deviceConnectionStatus": "connected",
+      "deviceReportedStatus": {
+        "lastReportedTimeUtc": "2026-09-05T13:20:00Z",
+        "reportedAtUtc": "2026-09-05T13:20:00Z",
+        "status": {
+          "device": {"runningFirmware": "8.2.1.2041"}
+        }
+      }
+    },
+    {
+      "name": "edge-lon-03",
+      "portal": "portal-acme",
+      "deviceType": "C400",
+      "owner": "ops-team",
+      "deviceConnectionStatus": "disconnected",
+      "deviceReportedStatus": {
+        "lastReportedTimeUtc": "2026-09-05T12:10:00Z",
+        "reportedAtUtc": "2026-09-05T12:10:00Z",
+        "status": {
+          "device": {"runningFirmware": "8.2.1.2041"}
+        }
+      }
+    },
+    {
+      "name": "edge-fra-04",
+      "portal": "portal-acme",
+      "deviceType": "C200",
+      "owner": "ops-team",
+      "deviceConnectionStatus": "connected",
+      "deviceReportedStatus": {
+        "lastReportedTimeUtc": "2026-09-05T13:59:00Z",
+        "reportedAtUtc": "2026-09-05T13:59:00Z",
+        "status": {
+          "device": {"runningFirmware": "8.1.0.1017"}
+        }
+      }
+    }
+  ]
+}

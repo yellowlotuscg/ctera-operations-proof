@@ -1,0 +1,8 @@
+{
+  "schema_note": "SYNTHETIC FIXTURE, not a CTERA API response. Mirrors the documented portal SDK surface for main database backup to S3: Backup.enable(bucket, interval) and servers.backup.connected(). Values are invented.",
+  "enabled": true,
+  "connected": true,
+  "targetBucket": "ctera-portal-db-backups",
+  "intervalMinutes": 60,
+  "lastRunUtc": "2026-09-05T13:02:00Z"
+}

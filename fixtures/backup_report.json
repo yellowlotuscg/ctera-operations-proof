@@ -1,0 +1,30 @@
+{
+  "schema_note": "SYNTHETIC FIXTURE, not a CTERA API response. Models the shape of a backup completion report an operator would inspect (portal UI or portal report). The lastCompletedBackupUtc field is a synthetic extension: it is NOT among the documented portal SDK include fields and would need a live portal report or per-device query to populate.",
+  "as_of": "2026-09-05T14:00:00Z",
+  "entries": [
+    {
+      "folder": "bf-finance",
+      "group": "Finance",
+      "owner": "fin-svc",
+      "lastCompletedBackupUtc": "2026-09-05T09:12:00Z"
+    },
+    {
+      "folder": "bf-hr",
+      "group": "Hr",
+      "owner": "hr-svc",
+      "lastCompletedBackupUtc": "2026-09-04T01:40:00Z"
+    },
+    {
+      "folder": "bf-legal",
+      "group": "Legal",
+      "owner": "leg-svc",
+      "lastCompletedBackupUtc": null
+    },
+    {
+      "folder": "bf-lab",
+      "group": "Lab",
+      "owner": "lab-svc",
+      "lastCompletedBackupUtc": "2026-09-05T15:30:00Z"
+    }
+  ]
+}
