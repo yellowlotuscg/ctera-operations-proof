@@ -1,78 +1,189 @@
-# CTERA Operations Proof (offline reference project)
+# CTERA Operations Proof
 
-A bounded, offline, public reference project demonstrating CTERA
-operations health and backup verification logic. Everything here runs
-against explicitly synthetic fixture data that mirrors documented CTERA
-SDK field paths. No CTERA Portal, Edge Filer, or cloud service is
-contacted, no SDK is installed, and no credentials, accounts, or private
-system references appear anywhere in this repository.
+Offline Python checks for CTERA fleet health and backup freshness. They
+run on the JSON fixtures in this repository. The fixtures are invented
+records shaped like CTERA portal data, and each file says so in
+`schema_note`. The checks are plain Python, with no SDK dependency.
+Running them does not contact a CTERA Portal, an Edge Filer, or any
+other network service, and the repository holds no credentials.
 
-Intended use: public MVP / case study / reference example for publication.
+This is a public reference: a small, tested example, with the boundary
+to a live portal written down in `SOURCES.md`.
 
-## What is demonstrated
-
-Three pure, deterministic checks in `ctera_ops/checks.py`:
-
-1. `fleet_health` - device connectivity posture and firmware parity for
-   a fleet of edge filers (offline detection, silent-device detection,
-   firmware baseline comparison, stale firmware reports).
-2. `backup_freshness` - per backup-folder completion age against a
-   folder-group freshness policy (overdue backups, missing completion
-   records, groups with no data at all, future timestamps).
-3. `portal_database_backup` - portal main database backup to S3:
-   enabled flag, valid interval, and current bucket connectivity.
-
-Run it:
+## Get the code
 
 ```sh
-./run_tests.sh            # unittest suite; writes a dated receipt
-python3 demo.py           # aggregate summary over the fixtures
+git clone https://github.com/yellowlotuscg/ctera-operations-proof.git
+cd ctera-operations-proof
 ```
 
-Run `python3 -m unittest discover -s tests -v` for the current suite. CI runs the tests and synthetic demo.
+## Run
 
-## Implemented vs vendor-connected (exact gap)
+`./run_tests.sh` can be started from any working directory. It moves to
+the repository root, runs the unittest suite, and saves a timestamped
+log under `receipts/`.
 
-| Layer | Status in this proof | Notes |
+From the repository root:
+
+```sh
+./run_tests.sh
+python3 demo.py
+python3 -m unittest discover -s tests -v
+```
+
+`python3 demo.py` loads the three fixtures and prints one JSON summary.
+The summary clock is `as_of` from `fixtures/devices.json`. The backup
+fixture stores the same timestamp. The folder-group policies are
+hardcoded in `demo.py`: Finance, Hr, Legal, and Lab at 24 hours, Archive
+at 48 hours.
+
+GitHub Actions (`.github/workflows/tests.yml`) uses Python 3.12 and runs:
+
+```sh
+python -m unittest discover -s tests -v
+python demo.py
+```
+
+The suite is 24 tests: 23 in `tests/test_checks.py` and 1 in
+`tests/test_counter_integrity.py`. The saved log
+`receipts/test_run_20260905T153150Z.txt` is from an earlier run. It
+records 23 tests on Python 3.9.6.
+
+## The three checks
+
+All three are in `ctera_ops/checks.py` and use the Python standard
+library. `run_all` calls them in this order: `fleet_health`,
+`backup_freshness`, `portal_database_backup`. A result is healthy when
+its critical count is zero. Warning findings are still included.
+
+### `fleet_health`
+
+Inputs are the device list, `expected_firmware` (device model to
+required version), and `as_of`. `as_of` has to be an ISO-8601 timestamp
+with `Z` or a numeric offset. Any other value raises `ValueError`.
+
+Connection status is compared in lowercase:
+
+- `connected` or `ok` counts as up. If
+  `deviceReportedStatus.lastReportedTimeUtc` is more than 15 minutes
+  before `as_of`, that is a critical finding: the portal still says
+  connected, and the device has gone quiet. A report time later than
+  `as_of` is accepted. A connected device with no parseable report time
+  gets no quiet-device finding.
+- Any other status value is critical.
+- A missing `deviceConnectionStatus` is a warning.
+
+Firmware is evaluated for every device:
+
+- No baseline for that `deviceType`: warning.
+- Missing `deviceReportedStatus.status.device.runningFirmware`: warning.
+- Firmware present and different from the baseline: warning.
+- Firmware matches, and `deviceReportedStatus.reportedAtUtc` is missing
+  or more than 24 hours before `as_of`: warning. A firmware report time
+  later than `as_of` is accepted.
+
+On the included fleet fixture the check is unhealthy. `edge-nyc-02` is
+connected with a report 40 minutes old, `edge-lon-03` is
+`disconnected`, and `edge-fra-04` has a firmware warning.
+
+### `backup_freshness`
+
+Inputs are the backup report, a map of folder group to maximum age in
+hours, and `as_of`. `as_of` follows the same timestamp rule as fleet
+health.
+
+For each entry the check reads `folder`, `group`, and
+`lastCompletedBackupUtc`:
+
+- No policy for that group: warning. Age is left unevaluated.
+- Missing or unparseable `lastCompletedBackupUtc`: critical.
+- Completion time later than `as_of`: warning.
+- Age greater than the group policy: critical.
+- Age within the policy: ok.
+
+After the entries, each policy group that has no row in the report is a
+critical finding. The included report has no Archive folder, so that
+group is one of those findings. The included report also flags `bf-hr`
+as overdue, `bf-legal` as missing a completion time, and `bf-lab` as a
+future timestamp. `bf-finance` is within 24 hours.
+
+### `portal_database_backup`
+
+This check reads `enabled`, `intervalMinutes`, and `connected` from
+`fixtures/portal_backup.json`. It stops at the first failing condition:
+
+- `enabled` missing or false: critical.
+- `intervalMinutes` missing, or not an int greater than zero: critical.
+- `connected` missing or false: warning. The result stays healthy,
+  because the critical count is still zero.
+- Enabled, a positive interval, and connected: ok.
+
+The included portal fixture takes the last path. `targetBucket` and
+`lastRunUtc` are in the file and are not read.
+
+On these fixtures, `python3 demo.py` reports `"healthy": false`. Fleet
+health and backup freshness both have critical findings. Portal
+database backup is healthy.
+
+## Live portal boundary
+
+| Piece | In this repository | Against a live portal |
 |---|---|---|
-| Offline check logic (this repo) | Implemented and tested | stdlib only, deterministic checks |
-| Synthetic fixtures | Implemented and labeled | `fixtures/*.json` each carry a `schema_note` stating they are synthetic, not CTERA API responses |
-| Live CTERA Portal wiring (fleet state, backup completion, DB backup state) | Integration boundary, not exercised | A deployment would fetch this via the documented CTERA Python SDK against a reachable portal. Out of scope for an offline reference proof; no credentials are requested or used |
-| Connection-status value vocabulary | Assumption, documented | `deviceConnectionStatus` is a documented retrievable field, but exact runtime enum values should be confirmed against a live portal; checks treat only `connected`/`ok` as healthy |
-| Backup completion timestamps from a live portal | Assumption, documented | `lastCompletedBackupUtc` is a declared synthetic extension; a live portal surfaces this data through portal reports or UI rather than the documented SDK include fields used here |
+| Check logic | `ctera_ops/checks.py`, covered by the unittest suite | The same functions, fed by data fetched elsewhere |
+| Fixtures | `fixtures/*.json`, each labeled synthetic in `schema_note` | A query against a portal you can reach |
+| SDK calls | Described below, and not executed | CTERA SDK for Python. This repository does not ask for or store credentials |
+| `deviceConnectionStatus` | `connected` and `ok` count as up | The field is documented as retrievable. The guide does not list the runtime values, so a deployment still has to confirm them |
+| Backup completion time | `lastCompletedBackupUtc` on each fixture entry | A portal report or the portal UI. It is not one of the documented `Backups.all()` include fields |
 
-## Mapping from checks to documented CTERA SDK surface
+## Field paths
 
-The fixture field paths mirror documented CTERA SDK for Python include
-fields where documented. A real adapter must validate field availability, timestamps and value mappings; this is not a drop-in live integration:
+The global administration guide linked from `SOURCES.md` documents these
+calls:
 
-- `admin.devices.filers(include=['name', 'portal', 'deviceType', 'owner',
-  'deviceConnectionStatus', 'deviceReportedStatus.status.device.runningFirmware'])`
-  - connection state, report time, firmware.
-- `admin.cloudfs.backups.all()` - backup folder inventory (folder, group,
-  owner); completion timestamps would come from a portal report or per
-  device state (see gap table).
-- `admin.servers.backup.enabled` / `backup.connected()` and
-  `Backup.enable(bucket, interval)` - portal main database backup to S3.
+- `admin.devices.filers(...)`. The default include is `name`, `portal`,
+  and `deviceType`. The guide's examples also request `owner`,
+  `deviceConnectionStatus`, and
+  `deviceReportedStatus.status.device.runningFirmware`.
+- `admin.cloudfs.backups.all()`. The guide's default include is `name`,
+  `group`, and `owner`. Fixture entries use `folder` as the folder
+  label. The freshness check reads `folder` and `group`. `owner` is
+  stored on the entry and is unused by the check.
+- `user.servers.backup.enable(bucket, interval)` and
+  `user.servers.backup.connected()`, for the portal main database
+  backup to S3. The interval argument is minutes.
+
+The fixtures also carry fields those calls do not document, because the
+checks need a clock and a completion time:
+`deviceReportedStatus.lastReportedTimeUtc`,
+`deviceReportedStatus.reportedAtUtc`, and `lastCompletedBackupUtc`.
+
+Two comments in `ctera_ops/checks.py` disagree with each other, and one
+disagrees with the guide. The function comment says
+`user.servers.backup.connected()`, which matches the guide. The module
+comment says `admin.servers.backup.connected()`, and it lists
+`deviceReportedStatus.status.agent.details.osName` on `filers`. The
+guide shows that `osName` path on `admin.devices.agents`. These checks
+never call the SDK. `osName` is unused.
 
 ## Layout
 
 ```
 ctera-operations-proof/
-  ctera_ops/checks.py        offline check logic (stdlib only)
-  fixtures/devices.json      synthetic fleet state
-  fixtures/backup_report.json  synthetic backup completion report
-  fixtures/portal_backup.json  synthetic portal DB backup state
-  tests/test_checks.py       unittest suite (23 tests)
-  demo.py                    aggregate summary runner
-  run_tests.sh               runs tests, saves receipt
-  receipts/                  dated test receipts
-  SOURCES.md                 official documentation citations
+  ctera_ops/__init__.py
+  ctera_ops/checks.py
+  fixtures/devices.json
+  fixtures/backup_report.json
+  fixtures/portal_backup.json
+  tests/test_checks.py
+  tests/test_counter_integrity.py
+  demo.py
+  run_tests.sh
+  receipts/
+  SOURCES.md
+  .github/workflows/tests.yml
+  LICENSE
 ```
 
-## Scope and safety
+## License
 
-- No installs, no cloud calls, no publishing, no account changes.
-- Deterministic: fixtures carry their own `as_of` observation time.
-- Honest labels: every fixture declares itself synthetic; nothing is
-  presented as a captured vendor response.
+MIT. Copyright (c) 2026 Matthew Coggins. See `LICENSE`.
